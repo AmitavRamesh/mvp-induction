@@ -1,0 +1,6 @@
+train_id,cleaning_done,cleaning_slot
+T101,1,Slot-A
+T102,0,Slot-B
+T103,1,Slot-A
+T104,0,Slot-C
+T105,0,Slot-B

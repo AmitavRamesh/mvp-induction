@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KMRL Induction Plan Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">KMRL — Induction Plan Visualizer (MVP)</h1>
+        
+        <!-- KPI Section -->
+        <div class="grid grid-cols-4 gap-4 mb-8">
+            <div class="bg-white p-4 rounded shadow">
+                <p class="text-sm text-gray-600">Total Trains</p>
+                <p data-kpi="total" class="text-2xl font-bold">—</p>
+            </div>
+            <div class="bg-white p-4 rounded shadow">
+                <p class="text-sm text-gray-600">Assigned</p>
+                <p data-kpi="assigned" class="text-2xl font-bold">—</p>
+            </div>
+            <div class="bg-white p-4 rounded shadow">
+                <p class="text-sm text-gray-600">Unassigned</p>
+                <p data-kpi="unassigned" class="text-2xl font-bold">—</p>
+            </div>
+            <div class="bg-white p-4 rounded shadow">
+                <p class="text-sm text-gray-600">Avg Cost</p>
+                <p data-kpi="avgcost" class="text-2xl font-bold">—</p>
+            </div>
+        </div>
+
+        <!-- Assignments Table -->
+        <div class="bg-white rounded shadow mb-8">
+            <div class="p-4 border-b">
+                <h2 class="text-xl font-semibold">Assignments</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Train ID</th>
+                            <th class="px-4 py-2 text-left">Assigned Slot</th>
+                            <th class="px-4 py-2 text-left">Role</th>
+                            <th class="px-4 py-2 text-left">Readiness</th>
+                            <th class="px-4 py-2 text-left">Mileage</th>
+                            <th class="px-4 py-2 text-left">Total Cost</th>
+                            <th class="px-4 py-2 text-left">Reasons</th>
+                        </tr>
+                    </thead>
+                    <tbody id="assign-table-body">
+                        <!-- Rows will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Unassigned Reasons -->
+        <div class="bg-white rounded shadow p-4">
+            <h2 class="text-xl font-semibold mb-4">Top Infeasibility Reasons (Unassigned Trains)</h2>
+            <div id="unassigned-reasons">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+/* Dynamic data loader: tries API first, then static CSV fallback */
+async function fetchJsonApi() {
+  try {
+    const resp = await fetch('/api/latest');
+    if (!resp.ok) throw new Error('no api');
+    const j = await resp.json();
+    if (j && Array.isArray(j.rows)) return j.rows;
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function parseCSVtext(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines.shift().split(',');
+  return lines.map(line => {
+    const parts = line.split(','); // naive but ok for our CSV
+    const obj = {};
+    headers.forEach((h,i) => obj[h.trim()] = (parts[i] === '' ? null : parts[i] ? parts[i].trim() : null));
+    return obj;
+  });
+}
+
+async function fetchStaticCsv() {
+  // fallback filename (tools will create this file)
+  const path = '/outputs/final_plan_detailed.csv';
+  try {
+    const resp = await fetch(path);
+    if (!resp.ok) throw new Error('no static csv');
+    const txt = await resp.text();
+    return parseCSVtext(txt);
+  } catch (e) {
+    return null;
+  }
+}
+
+function injectKPIs(rows) {
+  const total = rows.length;
+  const assigned = rows.filter(r => r.assigned_slot && r.assigned_slot.toLowerCase() !== 'none').length;
+  const unassigned = total - assigned;
+  const costs = rows.map(r => parseFloat(r.total_cost_recomputed)).filter(x => !isNaN(x));
+  const avgCost = costs.length ? (costs.reduce((a,b)=>a+b,0)/costs.length).toFixed(2) : 'N/A';
+
+  document.querySelector('[data-kpi="total"]').innerText = total;
+  document.querySelector('[data-kpi="assigned"]').innerText = assigned;
+  document.querySelector('[data-kpi="unassigned"]').innerText = unassigned;
+  document.querySelector('[data-kpi="avgcost"]').innerText = avgCost === 'N/A' ? 'N/A' : '₹ ' + avgCost;
+}
+
+function populateTable(rows) {
+  const tbody = document.getElementById('assign-table-body');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.className = 'border-t border-t-[#dbe4e6]';
+    tr.innerHTML = `
+      <td class="px-4 py-2">${r.train_id||''}</td>
+      <td class="px-4 py-2">${r.assigned_slot||''}</td>
+      <td class="px-4 py-2">${r.role||''}</td>
+      <td class="px-4 py-2">${r.readiness_score||''}</td>
+      <td class="px-4 py-2">${r.mileage_score||''}</td>
+      <td class="px-4 py-2">${r.total_cost_recomputed||''}</td>
+      <td class="px-4 py-2">${r.reasons||''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function populateReasons(rows) {
+  const unassigned = rows.filter(r => !r.assigned_slot || r.assigned_slot.toLowerCase() === 'none');
+  const infeas = unassigned.map(r => r.infeasibility_reasons || '');
+  const flat = infeas.flatMap(s => s ? s.split(';').map(x=>x.trim()).filter(x=>x) : []);
+  const counts = {};
+  flat.forEach(x => counts[x] = (counts[x]||0)+1);
+  const box = document.getElementById('unassigned-reasons');
+  if (!box) return;
+  if (Object.keys(counts).length === 0) box.innerHTML = '<div>None</div>';
+  else box.innerHTML = Object.entries(counts).map(([k,v])=>`<div>${k} — ${v}</div>`).join('');
+}
+
+async function loadAndRender() {
+  let rows = await fetchJsonApi();
+  if (!rows) rows = await fetchStaticCsv();
+  if (!rows) {
+    console.error('No data found via API or static CSV. Place latest CSV at /outputs/final_plan_detailed.csv or enable /api/latest');
+    return;
+  }
+  injectKPIs(rows);
+  populateTable(rows);
+  populateReasons(rows);
+}
+
+document.addEventListener('DOMContentLoaded', loadAndRender);
+</script>
+</body>
+</html>
+

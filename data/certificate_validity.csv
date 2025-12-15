@@ -1,0 +1,6 @@
+train_id,brake_test_valid,pto_valid,atp_valid
+T101,1,1,1
+T102,1,0,1
+T103,1,1,1
+T104,0,1,1
+T105,1,1,0

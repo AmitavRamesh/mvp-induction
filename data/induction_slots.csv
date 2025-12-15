@@ -1,0 +1,6 @@
+slot_id,role,depot,start_time,end_time,shunt_distance
+S1,Service,Muttom,23:00,23:30,500
+S2,Service,Aluva,23:15,23:45,300
+S3,Standby,Muttom,00:00,00:15,100
+S4,IBL,Muttom,01:00,01:15,200
+S5,Service,Aluva,22:30,23:00,250

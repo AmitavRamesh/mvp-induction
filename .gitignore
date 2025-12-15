@@ -24,9 +24,6 @@ outputs/
 logs/
 *.log
 
-# Data
-data/
-
 # Packaging
 dist/
 build/
@@ -34,6 +31,3 @@ build/
 
 # Jupyter
 .ipynb_checkpoints/
-
-frontend/
-*.html
